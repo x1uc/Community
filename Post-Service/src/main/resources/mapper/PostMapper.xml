@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.post.mapper.PostMapper">
+    <resultMap id="MyLike" type="com.example.post.domain.po.MyLike">
+        <result column="id" property="postId"/>
+        <result column="title" property="title"/>
+    </resultMap>
+    <insert id="savePost" useGeneratedKeys="true" keyProperty="id">
+        insert into post (id, title, content, create_time, user_id)
+        values (#{Post.userId},
+                #{Post.title},
+                #{Post.content},
+                #{Post.createTime},
+                #{Post.userId})
+    </insert>
+    <insert id="insertLike">
+        insert into `liked` (id, status, post_id, user_id)
+        values (#{likeId}, 1, #{postId}, #{userId});
+    </insert>
+    <update id="updateLike">
+        update `liked`
+        set status = case
+                         when status = 1 then 0
+                         when status = 0 then 1
+            end
+        where user_id = #{userId}
+          and post_id = #{postId};
+    </update>
+    <update id="updateLikeCount">
+        update post
+        set liked = liked + #{value}
+        where id = #{postId};
+    </update>
+    <select id="getPost" resultType="com.example.post.domain.po.Post">
+        select *
+        from post
+        where id = #{postId};
+    </select>
+    <select id="getLike" resultType="java.lang.Integer">
+        select count(*)
+        from liked
+        where user_id = #{userId}
+          and post_id = #{postId};
+    </select>
+    <select id="getLikeStatus" resultType="java.lang.Integer">
+        select status
+        from `liked`
+        where post_id = #{postId}
+          and user_id = #{userId};
+    </select>
+    <select id="transPostToUser" resultType="java.lang.Long">
+        select user_id
+        from post
+        where id = #{postId};
+    </select>
+    <select id="transIdToTitile" resultType="java.lang.String">
+        select title
+        from post
+        where id = #{postId};
+    </select>
+    <select id="getLikePostId" resultType="java.lang.Long">
+        select post_id
+        from liked
+        where user_id = #{userId} and status = 1;
+    </select>
+    <select id="getMyLike" resultMap="MyLike">
+        select title, id
+        from post
+        where
+        <choose>
+            <when test="pageList != null and pageList.size() > 0">
+                id in
+                <foreach collection="pageList" index="index" item="now" separator="," open="(" close=")">
+                    #{now,jdbcType = BIGINT}
+                </foreach>
+            </when>
+            <otherwise>
+                0 = 1
+            </otherwise>
+        </choose>
+    </select>
+</mapper>

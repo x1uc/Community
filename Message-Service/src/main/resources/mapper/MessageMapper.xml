@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.message.mapper.MessageMapper">
+    <update id="UpdatesStatus">
+        update message
+        set status = 1
+        where id = #{messageId};
+    </update>
+
+    <update id="updateStatus">
+        update message
+        set status = 1
+        where
+        <choose>
+            <when test="messageIdList != null and messageIdList.size() > 0">
+                id in
+                <foreach collection="messageIdList" item="now" open="(" close=")" separator=",">
+                    #{now,jdbcType=BIGINT}
+                </foreach>
+            </when>
+            <otherwise>
+                0 = 1
+            </otherwise>
+        </choose>
+    </update>
+
+    <select id="MsgGet" resultType="com.example.message.domain.po.Message">
+        select *
+        from message
+        where to_id = #{userId}
+          and type = #{type}
+        order by create_time desc
+        Limit #{limit} Offset #{offset};
+    </select>
+    <select id="messageTotal" resultType="java.lang.Integer">
+        select count(*)
+        from message
+        where to_id = #{userId}
+          and type = #{type}
+    </select>
+    <select id="unReadMessage" resultType="java.lang.Integer">
+        select count(*)
+        from message
+        where to_id = #{userId}
+          and type = #{type}
+          and status = 0;
+    </select>
+</mapper>
