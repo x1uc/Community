@@ -11,6 +11,8 @@ import com.example.user.service.UserService;
 import com.example.common.utils.JwtTool;
 import com.example.common.domain.R;
 import com.example.common.utils.EncryptionUtil;
+import com.example.user.utils.MailUtil;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -27,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
     private final UserMapper userMapper;
     private final StringRedisTemplate stringRedisTemplate;
+    private final MailUtil mailUtil;
 
     @Override
     public R login(UserLoginDTO userLoginDTO) {
@@ -46,15 +49,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public R getCode(Map<String, String> email) {
         User user = userMapper.transEmailToUser(email.get("email"));
+        String toMail = email.get("email");
         if (user != null) {
             return R.error("账号已经存在");
         }
         String verifyCode = createVerifyCode();
-        log.error("生成验证码{}", verifyCode);
-        String cache_email = "verify:" + email.get("email");
-        stringRedisTemplate.opsForValue().set(cache_email, verifyCode);
-        stringRedisTemplate.expire(cache_email, 30, TimeUnit.MINUTES);
-        return R.ok("验证码已发送，未收到请检查邮箱的垃圾箱");
+        log.info("生成验证码{}", verifyCode);
+        try {
+            String cache_email = "verify:" + email.get("email");
+            mailUtil.sendMail(toMail, "VerifyCode", verifyCode);
+            stringRedisTemplate.opsForValue().set(cache_email, verifyCode);
+            stringRedisTemplate.expire(cache_email, 30, TimeUnit.MINUTES);
+            return R.ok("验证码已发送，未收到请检查邮箱的垃圾箱");
+        } catch (MessagingException e) {
+            e.printStackTrace();
+        }
+        return R.error("邮箱不正确，发送验证码失败！");
     }
 
     @Override
@@ -63,7 +73,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String password = registerDTO.getPassWord();
         String userName = registerDTO.getUserName();
         String emailCode = registerDTO.getEmailCode();
-        
+
         String cache_verify_code = "verify:" + email;
         String verify_code = stringRedisTemplate.opsForValue().get(cache_verify_code);
 
@@ -79,7 +89,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (user1 != null) {
             return R.error("用户已经存在，请勿重复注册");
         }
-        
+
         User user = new User();
         user.setUserName(userName);
         user.setPassWord(EncryptionUtil.passwordEncryption(password));
@@ -101,7 +111,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return R.ok(avatar);
     }
 
-    
+
     private String createVerifyCode() {
         StringBuilder code = new StringBuilder();
         Random random = new Random();

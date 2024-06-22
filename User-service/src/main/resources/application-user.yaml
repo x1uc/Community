@@ -25,6 +25,19 @@ spring:
       port: 6380
       password: lxc123
       host: localhost
+  mail:
+    host: smtp.qq.com
+    username: xxx@qq.com  
+    password: xxxxxxxxxx
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+
 
 file:
   path: D:\git_repo\SCT_Forum\User-service\src\main\resources\static

@@ -32,3 +32,4 @@ auth:
     - /user/code
     - /user/register
     - /post/content
+    - /post/page
