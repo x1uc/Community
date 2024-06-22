@@ -1,8 +1,10 @@
 package com.example.post.service.impl;
 
 import cn.hutool.core.lang.Snowflake;
+import cn.hutool.extra.spring.SpringUtil;
 import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.plugins.pagination.dialects.PostgreDialect;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.api.clients.CommentClient;
 import com.example.api.clients.UserClient;
@@ -13,6 +15,8 @@ import com.example.common.domain.PageDTO;
 import com.example.common.domain.R;
 import com.example.common.utils.FeignUtil;
 import com.example.common.utils.UserContext;
+import com.example.post.Utils.RedisPrefix;
+import com.example.post.Utils.SpringBeanUtil;
 import com.example.post.domain.po.Post;
 import com.example.post.domain.dto.PostDTO;
 import com.example.post.domain.po.PostRecord;
@@ -24,13 +28,23 @@ import com.example.post.mapper.PostMapper;
 import com.example.post.messageQueue.LikedProducer;
 import com.example.post.service.PostService;
 import lombok.AllArgsConstructor;
+import org.apache.http.impl.client.StandardHttpRequestRetryHandler;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.aop.framework.AopContext;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Time;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -41,6 +55,10 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     private final UserClient userClient;
     private final CommentClient commentClient;
     private final LikedProducer likedProducer;
+    private final StringRedisTemplate redisTemplate;
+    private final RedissonClient redissonClient;
+    private final SpringBeanUtil springBeanUtil;
+
     private static final Snowflake snowflake = new Snowflake(1, 1);
 
     @Override
@@ -116,16 +134,38 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     }
 
     @Override
-    @Transactional
     public R updateLiked(Long postId) {
-
         Long userId = UserContext.getUser();
         if (userId == null) {
             return R.error("请先登录");
         }
 
+        String postLock = RedisPrefix.POST_LIKE_LOCK + postId;
+        RLock lock = redissonClient.getLock(postLock);
+
+        boolean getLock = false;
+        try {
+            getLock = lock.tryLock(5, 30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        if (!getLock) {
+            return R.error("更新点赞信息失败，请重试");
+        }
+        try {
+            PostServiceImpl postService = SpringBeanUtil.getBean(PostServiceImpl.class);
+            postService.updateDataBaseLike(userId, postId);
+            String key = RedisPrefix.POST_LIKE + postId + ":" + userId;
+            redisTemplate.delete(key);
+            return R.ok("更新成功");
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Transactional
+    public void updateDataBaseLike(Long userId, Long postId) {
         Integer like = postMapper.getLike(userId, postId);
-        Post post = postMapper.getPost(postId);
         if (like != 0) {
             Integer likeStatus = postMapper.getLikeStatus(userId, postId);
             if (likeStatus.equals(0)) {
@@ -133,32 +173,37 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             } else {
                 postMapper.updateLikeCount(-1, postId);
             }
-            // 查找 ，更新
             postMapper.updateLike(userId, postId);
         } else {
-            postMapper.updateLikeCount(1, postId);
-            // likeCount +1
             Long likeId = snowflake.nextId();
+            Long postUserId = postMapper.getPostUserId(postId);
             LikeDTO test = new LikeDTO();
             test.setFromId(userId);
-            test.setToId(post.getUserId());
+            test.setToId(postUserId);
             test.setPostId(postId);
             likedProducer.sendLikeMessage(test);
+            postMapper.updateLikeCount(1, postId);
             postMapper.insertLike(likeId, userId, postId);
         }
-
-        return R.ok("更新成功");
     }
+
 
     @Override
     public R judgeLike(Long postId) {
         Long userId = UserContext.getUser();
+        String key = RedisPrefix.POST_LIKE + postId + ":" + userId;
         if (userId == null) {
-            return R.error("请先登录"); // 已处理 未登录用户不会出现警告
+            return R.error("请先登录");
         }
-        //todo 先到redis里查，再到数据库中查
+        String isMember = redisTemplate.opsForValue().get(key);
+        if (isMember != null) {
+            return R.ok(true);
+        }
         Integer flag = postMapper.getLikeStatus(userId, postId);
-        if (flag != null && flag == 1) return R.ok(true);
+        if (flag != null && flag == 1) {
+            redisTemplate.opsForValue().set(key, "1", 600L, TimeUnit.SECONDS);
+            return R.ok(true);
+        }
         return R.ok(false);
     }
 

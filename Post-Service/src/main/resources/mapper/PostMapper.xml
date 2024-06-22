@@ -81,4 +81,9 @@
             </otherwise>
         </choose>
     </select>
+    <select id="getPostUserId" resultType="java.lang.Long">
+        select user_id
+        from post
+        where id = #{postId}
+    </select>
 </mapper>

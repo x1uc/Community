@@ -31,4 +31,6 @@ public interface PostMapper extends BaseMapper<Post> {
     List<Long> getLikePostId(@Param("userId") Long userId);
 
     List<MyLike> getMyLike(@Param("pageList") List<Long> pagePostIdList);
+
+    Long getPostUserId(@Param("postId") Long postId);
 }
