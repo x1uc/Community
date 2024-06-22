@@ -83,7 +83,6 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             return postRecord;
         }).collect(Collectors.toList());
 
-
         PostVo postVo = new PostVo();
         postVo.setRecords(collect);
         postVo.setTotal((int) postPage.getTotal());
@@ -119,16 +118,11 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     @Override
     @Transactional
     public R updateLiked(Long postId) {
-        // todo 因为需要实现 点赞变色功能
-        // 所以顶赞需要维护一个 Redis set
-        // 待实现
 
         Long userId = UserContext.getUser();
         if (userId == null) {
             return R.error("请先登录");
         }
-        // 读取当前的点赞状态，然后更新。redis有，则直接取redis中的。如果没有则查数据库。
-        // redis 暂时没连，待实现
 
         Integer like = postMapper.getLike(userId, postId);
         Post post = postMapper.getPost(postId);

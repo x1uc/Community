@@ -26,3 +26,9 @@ spring:
           uri: lb://message-service
           predicates:
             - Path=/message/**
+auth:
+   exclude:
+    - /user/login
+    - /user/code
+    - /user/register
+    - /post/content
