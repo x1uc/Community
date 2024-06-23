@@ -95,6 +95,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setPassWord(EncryptionUtil.passwordEncryption(password));
         user.setEmail(email);
         userMapper.saveUser(user);
+        // todo Automatic login after registration
         return R.ok("注册成功");
     }
 

@@ -29,19 +29,13 @@ public class MessageMapperImpl extends ServiceImpl<MessageMapper, Message> imple
 
     @Override
     public R MsgLike(PageDTO pageDTO) {
-        /**
-         * 计算偏移参数
-         */
         Long userId = UserContext.getUser();
         Integer Limit = pageDTO.getPageSize();
         Integer Offset = (pageDTO.getCurrentPage() - 1) * Limit;
-        /**
-         *  计算点赞总数
-         */
         Integer count = messageMapper.messageTotal(userId, 1);
 
         /**
-         * 获取评论，改变状态，封装
+         * Collect unread information and change unread information to read information
          */
         List<Message> likeList = messageMapper.MsgGet(userId, Limit, Offset, 1);
         List<Long> messageIdList = new ArrayList<>();
@@ -82,27 +76,23 @@ public class MessageMapperImpl extends ServiceImpl<MessageMapper, Message> imple
         return R.ok(messageVo);
     }
 
+
+    // todo change the function Name to MsgComment 
     @Override
     public R MsgService(PageDTO pageDTO) {
-        /**
-         * 计算偏移参数
-         */
         Long userId = UserContext.getUser();
         Integer Limit = pageDTO.getPageSize();
         Integer Offset = (pageDTO.getCurrentPage() - 1) * Limit;
         /**
-         *  计算点赞总数
+         *  total comment
          */
         Integer count = messageMapper.messageTotal(userId, 2);
-        /**
-         * 获取评论，改变状态，封装
-         */
         List<Message> commentList = messageMapper.MsgGet(userId, Limit, Offset, 2); // to_userId = userId
         List<Long> messageIdList = new ArrayList<>();
 
         List<MessageDetail> commentDetails = commentList.stream().map(item -> {
             /**
-             * 收集查询到的数据中未读的
+             * Collect unread information and change unread information to read information
              */
             Long commentId = item.getId();
             if (item.getStatus().equals(0)) {
@@ -159,31 +149,36 @@ public class MessageMapperImpl extends ServiceImpl<MessageMapper, Message> imple
 
     @Override
     public void addMessageLike(LikeDTO likeDetail) {
-        Message message = new Message();
-        message.setContent("点赞");
-        //todo 增加防止重复消费
-        message.setToId(likeDetail.getToId());
-        message.setFromId(likeDetail.getFromId());
-        message.setEntityId(likeDetail.getPostId());
-        message.setType(1);
-        message.setCreateTime(new Date());
-
-        this.save(message);
+        // Prevent duplicate consumption of messages
+        Long msgId = likeDetail.getId();
+        Long count = messageMapper.searchMsg(msgId);
+        if (count == 0) {
+            Message message = new Message();
+            message.setContent("点赞");
+            message.setToId(likeDetail.getToId());
+            message.setFromId(likeDetail.getFromId());
+            message.setEntityId(likeDetail.getPostId());
+            message.setType(1);
+            message.setCreateTime(new Date());
+            this.save(message);
+        }
     }
 
     @Override
     public void addMessageComment(SendCommentDTO sendCommentDTO) {
-        Message message = new Message();
-
-        message.setToId(sendCommentDTO.getToId());
-        message.setContent(sendCommentDTO.getContent());
-        message.setFromId(sendCommentDTO.getFromId());
-        message.setEntityId(sendCommentDTO.getPostId());
-        message.setCreateTime(new Date());
-        message.setType(2);
-
-
-        this.save(message);
+        Long messageId = sendCommentDTO.getId();
+        Long count = messageMapper.searchMsg(messageId);
+        if (count == 0) {
+            Message message = new Message();
+            message.setId(messageId);
+            message.setToId(sendCommentDTO.getToId());
+            message.setContent(sendCommentDTO.getContent());
+            message.setFromId(sendCommentDTO.getFromId());
+            message.setEntityId(sendCommentDTO.getPostId());
+            message.setCreateTime(new Date());
+            message.setType(2);
+            this.save(message);
+        }
     }
 
     @Override

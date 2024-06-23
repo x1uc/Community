@@ -20,4 +20,7 @@ public interface MessageMapper extends BaseMapper<Message> {
     Integer messageTotal(@Param("userId") Long userId, @Param("type") int i);
 
     Integer unReadMessage(@Param("userId") Long userId, @Param("type") int i);
+
+    Long searchMsg(@Param("msgId") Long msgId);
+
 }

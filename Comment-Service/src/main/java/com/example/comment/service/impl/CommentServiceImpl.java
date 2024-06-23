@@ -1,6 +1,7 @@
 package com.example.comment.service.impl;
 
 
+import cn.hutool.core.lang.Snowflake;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.example.api.clients.PostClient;
 import com.example.api.clients.UserClient;
@@ -30,6 +31,10 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     private final CommentMapper commentMapper;
     private final UserClient userClient;
     private final CommentProducer commentProducer;
+    // todo change snowflake Id generation way
+    //  Because the like and comment messages share a table, 
+    //  inconsistent snowflake ID generation can affect performance
+    private final static Snowflake snowflake_comment_msg = new Snowflake(1, 1);
 
     @Override
     public R addComment(CommentDTO commentDTO) {
@@ -47,12 +52,14 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         comment.setContent(commentDTO.getContent());
         comment.setEntityId(commentDTO.getEntityId());
 
+
         SendCommentDTO sendCommentDTO = new SendCommentDTO();
+        Long msgId = snowflake_comment_msg.nextId();
+        sendCommentDTO.setId(msgId);
         sendCommentDTO.setFromId(userId);
         sendCommentDTO.setToId(targetUserId);
         sendCommentDTO.setContent(commentDTO.getContent());
         sendCommentDTO.setPostId(commentDTO.getEntityId());
-
         this.save(comment);
         commentProducer.sendComment(sendCommentDTO);
 
@@ -78,6 +85,8 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
 
 
         SendCommentDTO sendCommentDTO = new SendCommentDTO();
+        Long msgId = snowflake_comment_msg.nextId();
+        sendCommentDTO.setId(msgId);
         sendCommentDTO.setFromId(userId);
         sendCommentDTO.setToId(commentDTO.getTargetId());
         sendCommentDTO.setContent(commentDTO.getContent());
@@ -107,7 +116,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
             String userName = (String) data.get("userName");
 
             List<Comment> subComment = commentMapper.getSubComment(item.getId());
-            
+
             List<SubCommentVo> subCommentVos = subComment.stream().map(sub -> {
                 Long userId = sub.getUserId();
                 Long targetId = sub.getTargetId();

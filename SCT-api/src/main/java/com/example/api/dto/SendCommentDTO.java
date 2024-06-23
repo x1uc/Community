@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class SendCommentDTO {
+    Long Id;
     Long ToId;
     Long FromId;
     Long postId;

@@ -38,7 +38,7 @@
         select count(*)
         from message
         where to_id = #{userId}
-          and type = #{type}
+          and type = #{type};
     </select>
     <select id="unReadMessage" resultType="java.lang.Integer">
         select count(*)
@@ -46,5 +46,10 @@
         where to_id = #{userId}
           and type = #{type}
           and status = 0;
+    </select>
+    <select id="searchMsg" resultType="java.lang.Long">
+        select count(*)
+        from message
+        where id = #{msgId};
     </select>
 </mapper>

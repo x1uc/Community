@@ -57,9 +57,13 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
     private final LikedProducer likedProducer;
     private final StringRedisTemplate redisTemplate;
     private final RedissonClient redissonClient;
-    private final SpringBeanUtil springBeanUtil;
 
-    private static final Snowflake snowflake = new Snowflake(1, 1);
+    private static final Snowflake snowflake_like = new Snowflake(1, 1);
+
+    // todo change snowflake Id generation way
+    //  Because the like and comment messages share a table, 
+    //  inconsistent snowflake ID generation can affect performance
+    private static final Snowflake snowflake_like_message = new Snowflake(1, 1);
 
     @Override
     public R PostPublish(PostDTO postDTO) {
@@ -165,6 +169,7 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
 
     @Transactional
     public void updateDataBaseLike(Long userId, Long postId) {
+
         Integer like = postMapper.getLike(userId, postId);
         if (like != 0) {
             Integer likeStatus = postMapper.getLikeStatus(userId, postId);
@@ -175,15 +180,15 @@ public class PostServiceImpl extends ServiceImpl<PostMapper, Post> implements Po
             }
             postMapper.updateLike(userId, postId);
         } else {
-            Long likeId = snowflake.nextId();
+            Long likeId = snowflake_like.nextId();
+            Long msgId = snowflake_like_message.nextId();
             Long postUserId = postMapper.getPostUserId(postId);
-            LikeDTO test = new LikeDTO();
-            test.setFromId(userId);
-            test.setToId(postUserId);
-            test.setPostId(postId);
-            likedProducer.sendLikeMessage(test);
+            LikeDTO msg = LikeDTO.builder().Id(msgId).PostId(postId).FromId(userId).ToId(postUserId).build();
+            // todo: Send message needs to be committed by the database before it can be done,
+            //  and is split into two methods
             postMapper.updateLikeCount(1, postId);
             postMapper.insertLike(likeId, userId, postId);
+            likedProducer.sendLikeMessage(msg);
         }
     }
 
